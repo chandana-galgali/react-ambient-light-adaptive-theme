@@ -16,4 +16,4 @@ A React component that automatically switches between dark and light themes base
 To install the package, run the following command:
 
 ```bash
-npm install react-ambient-light-theme
+npm install react-ambient-light-adaptive-theme
