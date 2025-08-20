@@ -1,4 +1,5 @@
-# react-ambient-light-theme
+# React Ambient-Light Adaptive Theme
+
 A React component that automatically switches between dark and light themes based on the ambient light levels detected by the **AmbientLightSensor** API. This package aims to enhance the user experience by adapting the app's theme to the surrounding lighting conditions.
 
 ## Features
