@@ -1,6 +1,6 @@
 {
   "name": "react-ambient-light-adaptive-theme",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "A React component that automatically switches between dark and light themes based on a device's ambient light levels, with built-in fallbacks. This package aims to enhance the user experience by adapting the app's theme to the surrounding lighting conditions.",
   "keywords": [
