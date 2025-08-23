@@ -34,6 +34,8 @@ const AmbientLightThemeProvider: React.FC<
     let sensor: AmbientLightSensor | undefined;
 
     const applyFallbackTheme = () => {
+      alert("Using fallback theme."); 
+      console.log("Using fallback theme.");
       if (fallback === "system") {
         const isSystemDarkMode =
           window.matchMedia &&
@@ -46,10 +48,13 @@ const AmbientLightThemeProvider: React.FC<
     };
 
     if ("AmbientLightSensor" in window) {
+      alert("Ambient Light Sensor detected!");
+      console.log("Ambient Light Sensor detected in browser.");
       try {
         sensor = new window.AmbientLightSensor();
         sensor.onreading = (event) => {
           const lightLevel = event.illuminance;
+          console.log("Ambient light level (lux):", lightLevel);
           setIsDarkMode(lightLevel < 50);
         };
         sensor.onerror = (event) => {
@@ -62,6 +67,7 @@ const AmbientLightThemeProvider: React.FC<
         applyFallbackTheme();
       }
     } else {
+      alert("Ambient Light Sensor NOT supported.");
       console.warn("Ambient Light Sensor not supported, falling back.");
       applyFallbackTheme();
     }
