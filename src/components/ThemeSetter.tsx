@@ -6,12 +6,10 @@ const ThemeSetter = () => {
     const { isDarkMode } = useTheme();
 
     useEffect(() => {
-        if (document.body) {
-            if (isDarkMode) {
-                document.body.classList.add('dark');
-            } else {
-                document.body.classList.remove('dark');
-            }
+        if (isDarkMode) {
+            document.body.classList.add('dark');
+        } else {
+            document.body.classList.remove('dark');
         }
     }, [isDarkMode]);
 
