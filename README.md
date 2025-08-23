@@ -23,6 +23,7 @@ npm install react-ambient-light-adaptive-theme
 ## Usage
 Once installed, wrap your application inside the AmbientLightThemeProvider component to enable automatic theme switching.
 ```JavaScript
+
 import React from 'react';
 import AmbientLightThemeProvider from 'react-ambient-light-adaptive-theme';
 
@@ -41,12 +42,12 @@ export default App;
 ```
 
 ## Configuration Options
-Fallback Behavior: You can configure the fallback to use either "system" or "time-based" logic.
+- **Fallback Behavior**: You can configure the fallback to use either "system" or "time-based" logic.
 ```JavaScript
 <AmbientLightThemeProvider fallback="system" /> // Options: "system" or "time-based"
 ```
 
-## Important: 
+## Important
 Your application's main CSS file should contain CSS variables for background and foreground colors, and an additional class for dark mode to enable the theme switching.
 
 ## License
