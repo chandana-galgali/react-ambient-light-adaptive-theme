@@ -1,96 +1,99 @@
 "use client";
-import React, { useState, useEffect, ReactNode } from "react";
+import React, { useState, useEffect, ReactNode, createContext, useContext } from "react";
+
+interface ThemeContextType {
+    isDarkMode: boolean;
+}
+
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 interface AmbientLightSensorEvent extends Event {
-  illuminance: number;
+    illuminance: number;
 }
 
 declare global {
-  interface Window {
-    AmbientLightSensor: {
-      new(): AmbientLightSensor;
-    };
-  }
+    interface Window {
+        AmbientLightSensor: {
+            new(): AmbientLightSensor;
+        };
+    }
 }
 
 interface AmbientLightSensor {
-  onreading: (event: AmbientLightSensorEvent) => void;
-  onerror: (event: Event) => void;
-  start: () => void;
-  stop: () => void;
+    onreading: (event: AmbientLightSensorEvent) => void;
+    onerror: (event: Event) => void;
+    start: () => void;
+    stop: () => void;
 }
 
 interface AmbientLightThemeProviderProps {
-  children: ReactNode;
-  fallback?: "system" | "time-based";
+    children: ReactNode;
+    fallback?: "system" | "time-based";
 }
 
 const AmbientLightThemeProvider: React.FC<
-  AmbientLightThemeProviderProps
+    AmbientLightThemeProviderProps
 > = ({ children, fallback = "system" }) => {
+    const [isDarkMode, setIsDarkMode] = useState(false);
+    const [mounted, setMounted] = useState(false);
 
-  const getInitialTheme = () => {
-    if (typeof window !== 'undefined' && fallback === "system") {
-      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    }
-    return false;
-  };
+    useEffect(() => {
+        setMounted(true);
 
-  const [isDarkMode, setIsDarkMode] = useState(getInitialTheme());
+        let sensor: AmbientLightSensor | undefined;
 
-  useEffect(() => {
-    let sensor: AmbientLightSensor | undefined;
-
-    const applyFallbackTheme = () => {
-      console.log("Using fallback theme.");
-      if (fallback === "system") {
-        const isSystemDarkMode =
-          window.matchMedia &&
-          window.matchMedia("(prefers-color-scheme: dark)").matches;
-        setIsDarkMode(isSystemDarkMode);
-      } else if (fallback === "time-based") {
-        const currentHour = new Date().getHours();
-        setIsDarkMode(currentHour >= 19 || currentHour <= 6);
-      }
-    };
-
-    if ("AmbientLightSensor" in window) {
-      console.log("Ambient Light Sensor detected in browser.");
-      try {
-        sensor = new window.AmbientLightSensor();
-        sensor.onreading = (event) => {
-          const lightLevel = event.illuminance;
-          console.log("Ambient light level (lux):", lightLevel);
-          setIsDarkMode(lightLevel < 50);
+        const applyFallbackTheme = () => {
+            if (fallback === "system") {
+                const isSystemDarkMode =
+                    window.matchMedia &&
+                    window.matchMedia("(prefers-color-scheme: dark)").matches;
+                setIsDarkMode(isSystemDarkMode);
+            } else if (fallback === "time-based") {
+                const currentHour = new Date().getHours();
+                setIsDarkMode(currentHour >= 19 || currentHour <= 6);
+            }
         };
-        sensor.onerror = (event) => {
-          console.error("Ambient Light Sensor error:", event);
-          applyFallbackTheme();
+
+        if ("AmbientLightSensor" in window) {
+            try {
+                alert("Ambient Light Sensor is supported by your browser.");
+                sensor = new window.AmbientLightSensor();
+                sensor.onreading = (event) => {
+                    const lightLevel = event.illuminance;
+                    setIsDarkMode(lightLevel < 40);
+                };
+                sensor.onerror = (event) => {
+                    applyFallbackTheme();
+                };
+                sensor.start();
+            } catch (error) {
+                applyFallbackTheme();
+            }
+        } else {
+            alert("Ambient Light Sensor is not supported by your browser.");
+            applyFallbackTheme();
+        }
+
+        return () => {
+            if (sensor) {
+                sensor.stop();
+            }
         };
-        sensor.start();
-      } catch (error) {
-        console.error("Ambient Light Sensor not available:", error);
-        applyFallbackTheme();
-      }
-    } else {
-      console.warn("Ambient Light Sensor not supported, falling back.");
-      applyFallbackTheme();
+    }, [fallback]);
+
+    return (
+        <ThemeContext.Provider value={{ isDarkMode }}>
+            {children}
+        </ThemeContext.Provider>
+    );
+};
+
+export const useTheme = () => {
+    const context = useContext(ThemeContext);
+    if (context === undefined) {
+        throw new Error('useTheme must be used within a AmbientLightThemeProvider');
     }
-
-    return () => {
-      if (sensor) {
-        sensor.stop();
-      }
-    };
-  }, [fallback]);
-
-  return (
-    <div
-      className={isDarkMode ? "dark" : "light"}
-    >
-      {children}
-    </div>
-  );
+    return context;
 };
 
 export default AmbientLightThemeProvider;
