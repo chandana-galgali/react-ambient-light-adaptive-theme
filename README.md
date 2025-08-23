@@ -42,7 +42,7 @@ export default App;
 ```
 
 ## Configuration Options
-- **Fallback Behavior**: You can configure the fallback to use either "system" or "time-based" logic.
+**Fallback Behavior**: You can configure the fallback to use either "system" or "time-based" logic.
 ```JavaScript
 <AmbientLightThemeProvider fallback="system" /> // Options: "system" or "time-based"
 ```
