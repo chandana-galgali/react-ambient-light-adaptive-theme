@@ -28,13 +28,20 @@ interface AmbientLightThemeProviderProps {
 const AmbientLightThemeProvider: React.FC<
   AmbientLightThemeProviderProps
 > = ({ children, fallback = "system" }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const getInitialTheme = () => {
+    if (typeof window !== 'undefined' && fallback === "system") {
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+    return false;
+  };
+
+  const [isDarkMode, setIsDarkMode] = useState(getInitialTheme());
 
   useEffect(() => {
     let sensor: AmbientLightSensor | undefined;
 
     const applyFallbackTheme = () => {
-      alert("Using fallback theme."); 
       console.log("Using fallback theme.");
       if (fallback === "system") {
         const isSystemDarkMode =
@@ -48,7 +55,6 @@ const AmbientLightThemeProvider: React.FC<
     };
 
     if ("AmbientLightSensor" in window) {
-      alert("Ambient Light Sensor detected!");
       console.log("Ambient Light Sensor detected in browser.");
       try {
         sensor = new window.AmbientLightSensor();
@@ -67,7 +73,6 @@ const AmbientLightThemeProvider: React.FC<
         applyFallbackTheme();
       }
     } else {
-      alert("Ambient Light Sensor NOT supported.");
       console.warn("Ambient Light Sensor not supported, falling back.");
       applyFallbackTheme();
     }
