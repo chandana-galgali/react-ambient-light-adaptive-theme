@@ -1,57 +1,203 @@
 # react-ambient-light-adaptive-theme
 
-A React component that automatically switches between dark and light themes based on a device's ambient light levels, with built-in fallbacks. This package aims to enhance the user experience by adapting the app's theme to the surrounding lighting conditions.
+[![npm](https://img.shields.io/npm/v/react-ambient-light-adaptive-theme)](https://www.npmjs.com/package/react-ambient-light-adaptive-theme)
+[![CI](https://github.com/chandana-galgali/react-ambient-light-adaptive-theme/actions/workflows/ci.yml/badge.svg)](https://github.com/chandana-galgali/react-ambient-light-adaptive-theme/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+A React provider that switches between light and dark themes based on how bright it actually is around your user. It reads the device's ambient light sensor, and falls back to the system setting or the time of day when the browser can't measure light.
+
+**[Try the live demo →](https://chandana-galgali.github.io/react-ambient-light-adaptive-theme/)** Drag a lux needle from moonlight to full daylight and watch the page switch.
+
+[![Demo: the same page in light and dark themes](docs/preview.png)](https://chandana-galgali.github.io/react-ambient-light-adaptive-theme/)
 
 ## Features
-- **Automatic Theme Switching**: Changes the theme based on the ambient light levels detected by the **AmbientLightSensor** API.
-  - **Dark mode** is enabled when the light level is low.
-  - **Light mode** is enabled when the light level is high.
-- **Fallback Options**:
-  - **System Preference-Based Theming**: If the AmbientLightSensor is not available, the component will fall back to using the user's system preference for light or dark mode.
-  - **Time-Based Theming**: As an alternative, you can configure it to switch themes based on the time of day (e.g., dark mode from 7 PM to 7 AM).
-- **Simple Integration**: Just wrap your application with the `AmbientLightThemeProvider` component.
 
-## Disclaimer on Browser Support
-This package relies on the browser's implementation of the experimental `AmbientLightSensor` API. While a physical light sensor may be present on a device (to enable features like auto-brightness), not all browsers expose this data to web applications. In such cases, the component will use the configured fallback logic to ensure a consistent user experience.
+- **Reads real light levels** through the [`AmbientLightSensor`](https://w3c.github.io/ambient-light/) API, including the permission check.
+- **No flicker.** Two thresholds (dark below 30 lx, light above 60 lx) with a hold zone between them, plus smoothing of noisy readings.
+- **Fallbacks that stay live:** the system preference (updates when the OS switches), the time of day (checked every minute), or a fixed theme.
+- **Manual override** (`auto` / `light` / `dark`) that's remembered between visits.
+- **No flash on load.** An optional inline script sets the theme before the first paint in server-rendered apps.
+- **Works anywhere you can render React**: Next.js App Router (server components), Vite, CRA. Ships ESM, CommonJS and TypeScript types. The only dependency is React itself, as a peer dependency.
 
 ## Installation
-To install the package, run the following command:
+
 ```bash
 npm install react-ambient-light-adaptive-theme
 ```
 
-## Usage
-Once installed, wrap your application inside the AmbientLightThemeProvider component to enable automatic theme switching.
-```JavaScript
+## Quick start
 
-import React from 'react';
-import AmbientLightThemeProvider from 'react-ambient-light-adaptive-theme';
+### Next.js (App Router)
 
-const App = () => {
+```tsx
+// app/layout.tsx
+import { AmbientLightThemeProvider } from "react-ambient-light-adaptive-theme";
+import { AmbientThemeScript } from "react-ambient-light-adaptive-theme/script";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AmbientLightThemeProvider>
-      <div>
-        <h1>Welcome to the Ambient Light Adaptive Theme App</h1>
-        <p>The theme will adjust automatically based on the ambient light.</p>
-      </div>
-    </AmbientLightThemeProvider>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <AmbientThemeScript />
+      </head>
+      <body>
+        <AmbientLightThemeProvider>{children}</AmbientLightThemeProvider>
+      </body>
+    </html>
   );
-};
-
-export default App;
+}
 ```
 
-## Configuration Options
-**Fallback Behavior**: You can configure the fallback to use either "system" or "time-based" logic.
-```JavaScript
-<AmbientLightThemeProvider fallback="system" /> // Options: "system" or "time-based"
+If you pass options to the provider, give the same `fallback`, `attribute`, `storageKey`, `nightStart` and `nightEnd` to `<AmbientThemeScript>` so the first paint matches.
+
+### Plain React (Vite, CRA)
+
+```tsx
+import AmbientLightThemeProvider from "react-ambient-light-adaptive-theme";
+
+createRoot(document.getElementById("root")!).render(
+  <AmbientLightThemeProvider fallback="time-based">
+    <App />
+  </AmbientLightThemeProvider>,
+);
 ```
 
-## Important
-Your application's main CSS file should contain CSS variables for background and foreground colors, and an additional class for dark mode to enable the theme switching.
+### Style both themes
 
-## License
-This project is licensed under the MIT License - see the LICENSE file for details.
+The provider adds `light` or `dark` to `<html>` and sets `color-scheme`, so native scrollbars and form controls match.
+
+```css
+:root,
+.light {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+.dark {
+  --background: #0f1622;
+  --foreground: #e3e8ee;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+```
+
+With **Tailwind CSS v4**, make the `dark:` variant follow the class:
+
+```css
+@custom-variant dark (&:where(.dark, .dark *));
+```
+
+Prefer a data attribute? Use `attribute="data-theme"` and style `[data-theme="dark"]`.
+
+### Read the theme in a component
+
+```tsx
+import { useAmbientTheme } from "react-ambient-light-adaptive-theme";
+
+function ThemeBadge() {
+  const { theme, source, illuminance, mode, setMode } = useAmbientTheme();
+
+  return (
+    <button onClick={() => setMode(mode === "auto" ? "dark" : "auto")}>
+      {theme} theme from {source}
+      {illuminance !== null && ` (${Math.round(illuminance)} lx)`}
+    </button>
+  );
+}
+```
+
+## How it decides
+
+1. If the user picked **light** or **dark** manually, use that.
+2. Otherwise, if the sensor has a reading: below `darkThreshold` → dark, above `lightThreshold` → light, in between → keep the current theme.
+3. Otherwise, use the `fallback`: the system setting, the time of day, or a fixed theme.
+
+## API
+
+### `<AmbientLightThemeProvider>`
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `fallback` | `"system" \| "time-based" \| "light" \| "dark"` | `"system"` | What to use when there's no light reading. |
+| `darkThreshold` | `number` | `30` | Go dark below this many lux. |
+| `lightThreshold` | `number` | `60` | Go light above this many lux. Between the two, the theme doesn't change. |
+| `smoothing` | `number` | `0.4` | Weight of the previous reading (0 = none, up to 0.95). |
+| `frequency` | `number` | `1` | Sensor readings per second. |
+| `nightStart` | `number` | `19` | Hour (0–23) the time-based fallback turns dark. |
+| `nightEnd` | `number` | `7` | Hour it turns light again. Windows may wrap past midnight. |
+| `attribute` | `"class" \| "data-*" \| null` | `"class"` | Where to write the theme on `<html>`. `null` leaves the DOM alone. |
+| `storageKey` | `string \| null` | `"ambient-theme-mode"` | localStorage key for the manual choice. `null` to not remember it. |
+| `defaultMode` | `"auto" \| "light" \| "dark"` | `"auto"` | Mode before the user picks one. |
+| `disableSensor` | `boolean` | `false` | Skip the sensor and use only the fallback. |
+| `simulatedIlluminance` | `number \| null` | `null` | Feed a lux value yourself (demos, tests, Storybook). Not smoothed. |
+| `onThemeChange` | `(theme, source) => void` | None | Called when the theme or its source changes. |
+
+### `useAmbientTheme()`
+
+| Value | Type | Description |
+| --- | --- | --- |
+| `theme` | `"light" \| "dark"` | The theme in use. |
+| `isDarkMode` | `boolean` | `theme === "dark"`. |
+| `source` | `"sensor" \| "simulated" \| "system" \| "time" \| "static" \| "manual"` | Why this theme was picked. |
+| `illuminance` | `number \| null` | Latest smoothed reading in lux. |
+| `sensorStatus` | `"idle" \| "unsupported" \| "pending" \| "active" \| "denied" \| "error" \| "simulated"` | What the sensor is doing. |
+| `mode` | `"auto" \| "light" \| "dark"` | Auto, or the user's manual choice. |
+| `setMode` | `(mode) => void` | Change the mode. Saved to `storageKey`. |
+| `toggleTheme` | `() => void` | Switch to the opposite theme as a manual choice. |
+
+`useTheme` still works as an alias for code written against 0.1.x.
+
+### Helpers
+
+These are exported for custom setups and tests:
+
+| Export | Description |
+| --- | --- |
+| `classifyIlluminance(lux, previous, dark?, light?)` | The threshold-with-hold-zone rule. |
+| `smoothIlluminance(previous, next, smoothing?)` | Exponential moving average of readings. |
+| `isNightHour(hour, start?, end?)`, `themeFromTime(date, start?, end?)` | The time-based rule. |
+| `isAmbientLightSensorSupported()` | Feature check, safe during SSR. |
+| `queryAmbientLightPermission()` | Resolves to `"granted"`, `"denied"` or `"prompt"`. |
+| `startAmbientLightSensor({ frequency, onReading, onError })` | Start the sensor; returns a stop function. |
+| `getThemeScript(options)` | The no-flash script as a string, for frameworks that inject scripts their own way. |
+| `DEFAULTS` | The default option values. |
+
+## Browser support
+
+`AmbientLightSensor` is part of the experimental Generic Sensor API. Today it's available in Chromium-based browsers on Android once you turn on `chrome://flags/#enable-generic-sensor-extra-classes`, and it requires HTTPS. Firefox and Safari don't support it. When the sensor is missing, blocked or denied, the provider uses the fallback, so the theme always works. Check `sensorStatus` if you want to tell users why.
+
+## Developing
+
+```bash
+npm install
+npm run dev        # demo site at http://localhost:3000
+npm test           # unit tests (node:test via tsx)
+npm run check      # lint + typecheck + tests
+npm run build:lib  # build the package into dist/
+npm run build      # static export of the demo site into out/
+```
+
+```text
+src/lib/                the published package
+  core.ts               pure decision logic (thresholds, smoothing, time)
+  sensor.ts             AmbientLightSensor wrapper
+  dom.ts                applying the theme and the no-flash script
+  AmbientLightThemeProvider.tsx
+  script.tsx            server-safe entry: <AmbientThemeScript>
+src/app/                Next.js demo site (static export)
+src/components/demo/    demo UI: lux meter, chart, browser check, configurator
+tests/                  unit tests
+```
+
+The demo deploys to GitHub Pages through `.github/workflows/pages.yml` on every push to `main`, and `.github/workflows/ci.yml` runs lint, typecheck, tests and both builds. To turn Pages on, go to **Settings → Pages** and set the source to **GitHub Actions**.
 
 ## Contributing
-Feel free to open issues or submit pull requests if you would like to contribute to the development of this project. Contributions are welcome!
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE) © Chandana Galgali
