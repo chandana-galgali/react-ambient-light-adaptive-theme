@@ -11,6 +11,12 @@ export const DEFAULTS = {
    * switches to it. Filters out a hand passing over the sensor.
    */
   switchDelay: 1000,
+  /** Camera mode: go dark below this brightness (0–1). */
+  cameraDarkThreshold: 0.12,
+  /** Camera mode: go light above this brightness (0–1). */
+  cameraLightThreshold: 0.2,
+  /** Camera mode: milliseconds between samples. */
+  cameraInterval: 500,
   /** Sensor sampling frequency in Hz. */
   frequency: 1,
   /** Hour (0–23) at which the time-based fallback turns dark. */
@@ -152,7 +158,7 @@ export function fallbackSource(fallback: Fallback): ThemeSource {
 export function resolveTheme(input: {
   mode: ThemeMode;
   sensorTheme: Theme | null;
-  sensorSource: "sensor" | "simulated";
+  sensorSource: "sensor" | "simulated" | "camera";
   fallbackTheme: Theme;
   fallback: Fallback;
 }): { theme: Theme; source: ThemeSource } {

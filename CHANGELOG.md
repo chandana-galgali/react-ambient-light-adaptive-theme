@@ -16,6 +16,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Hysteresis: separate `darkThreshold` (30 lx) and `lightThreshold` (60 lx) so readings near the cut-off don't make the theme flicker.
 - `switchDelay` (default 1000 ms): a new theme must hold that long before switching, so a passing shadow is ignored. Works with sensors that only report on change.
 - `frequency` option for the sensor.
+- Camera light meter: `lightSource="camera"` estimates brightness from the camera image, so the theme can follow the room on devices whose browsers don't expose a light sensor (including iPhone). New `brightness` and `lightSource` values on the hook, `cameraDarkThreshold`, `cameraLightThreshold`, `cameraInterval` and `cameraFacingMode` props, and `startCameraLightMeter`, `isCameraSupported` and `meanBrightness` helpers.
 - Permission check for `ambient-light-sensor`, and a `sensorStatus` value (`unsupported`, `denied`, `active` and others).
 - Manual override with `mode`, `setMode` and `toggleTheme`, remembered in localStorage (`storageKey`, `defaultMode`).
 - Fixed fallbacks (`"light"`, `"dark"`) and configurable night hours (`nightStart`, `nightEnd`).
@@ -25,7 +26,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - `useAmbientTheme()` hook exposing `theme`, `source`, `illuminance` and more.
 - Exported pure helpers (`classifyIlluminance`, `createSwitchGate`, `themeFromTime`, `startAmbientLightSensor` and others).
 - ESM and CommonJS builds with TypeScript declarations, marked `"use client"` for React Server Components.
-- Unit tests, an end-to-end test that drives the real sensor code with a virtual light sensor (`npm run test:sensor`), GitHub Actions CI, and an interactive demo site deployed to GitHub Pages.
+- Unit tests, an end-to-end test that drives the real sensor and camera code with a virtual light sensor and a fake webcam (`npm run test:sensor`), GitHub Actions CI, and an interactive demo site deployed to GitHub Pages.
 
 ### Changed
 

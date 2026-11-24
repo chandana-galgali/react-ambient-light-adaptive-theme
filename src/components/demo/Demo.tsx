@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AmbientLightThemeProvider, DEFAULTS, type Fallback } from "@/lib";
+import { AmbientLightThemeProvider, DEFAULTS, type Fallback, type LightSource } from "@/lib";
 import { BrowserCheck } from "./BrowserCheck";
 import { Configurator } from "./Configurator";
 import { Docs } from "./Docs";
@@ -11,26 +11,42 @@ import { ReadingsChart } from "./ReadingsChart";
 import { GITHUB_URL, NPM_URL, STORAGE_KEY } from "./site";
 
 export interface DemoConfig {
+  lightSource: LightSource;
   darkThreshold: number;
   lightThreshold: number;
   fallback: Fallback;
   nightStart: number;
   nightEnd: number;
   switchDelay: number;
+  cameraDarkThreshold: number;
+  cameraLightThreshold: number;
 }
 
 export const DEFAULT_CONFIG: DemoConfig = {
+  lightSource: "sensor",
   darkThreshold: DEFAULTS.darkThreshold,
   lightThreshold: DEFAULTS.lightThreshold,
   fallback: "system",
   nightStart: DEFAULTS.nightStart,
   nightEnd: DEFAULTS.nightEnd,
   switchDelay: DEFAULTS.switchDelay,
+  cameraDarkThreshold: DEFAULTS.cameraDarkThreshold,
+  cameraLightThreshold: DEFAULTS.cameraLightThreshold,
 };
 
 export default function Demo() {
   const [lux, setLux] = useState<number | null>(null);
   const [config, setConfig] = useState<DemoConfig>(DEFAULT_CONFIG);
+
+  // Simulation and camera are exclusive: picking one turns the other off.
+  const simulate = (value: number | null) => {
+    if (value !== null) setConfig((c) => ({ ...c, lightSource: "sensor" }));
+    setLux(value);
+  };
+  const setCamera = (on: boolean) => {
+    if (on) setLux(null);
+    setConfig((c) => ({ ...c, lightSource: on ? "camera" : "sensor" }));
+  };
 
   return (
     <AmbientLightThemeProvider
@@ -63,10 +79,10 @@ export default function Demo() {
           <p className="lede">
             A React provider that picks light or dark from how bright it
             actually is around your user, using the device&apos;s ambient light
-            sensor. Where the browser can&apos;t measure light, it falls back to
+            sensor or its camera. Where neither is available, it falls back to
             the system setting or the time of day.
           </p>
-          <LuxMeter lux={lux} setLux={setLux} config={config} />
+          <LuxMeter lux={lux} setLux={simulate} config={config} setCamera={setCamera} />
         </section>
 
         <section className="band" aria-labelledby="hysteresis-title">
@@ -93,13 +109,14 @@ export default function Demo() {
           <div className="band-text">
             <h2 id="browser-title">What your browser can do</h2>
             <p>
-              <code>AmbientLightSensor</code> is still experimental. Chrome on
-              Android has it behind a flag, and most desktop browsers don&apos;t
-              have it at all. The provider checks for it, asks for permission,
-              and uses the fallback whenever it can&apos;t get a reading.
+              <code>AmbientLightSensor</code> is still experimental. Chrome and
+              Edge have it behind a flag, and Safari and Firefox don&apos;t have
+              it at all. The camera works in nearly every browser over HTTPS.
+              Whichever you use, the provider falls back to the system setting
+              or the clock whenever it can&apos;t get a reading.
             </p>
           </div>
-          <BrowserCheck lux={lux} setLux={setLux} config={config} />
+          <BrowserCheck lux={lux} setLux={simulate} config={config} />
         </section>
 
         <section className="band band-wide" aria-labelledby="configure-title">

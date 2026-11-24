@@ -19,13 +19,22 @@ export type Fallback = "system" | "time-based" | Theme;
 /** Where the current theme came from. */
 export type ThemeSource =
   | "sensor"
+  | "camera"
   | "simulated"
   | "system"
   | "time"
   | "static"
   | "manual";
 
-/** State of the ambient light sensor. */
+/**
+ * What measures the light.
+ * - `sensor`: the device's ambient light sensor (most accurate, rarely available).
+ * - `camera`: average brightness of the camera image (works almost everywhere,
+ *   asks for camera permission, relative rather than in lux).
+ */
+export type LightSource = "sensor" | "camera";
+
+/** State of the light source (sensor or camera). */
 export type SensorStatus =
   | "idle"
   | "unsupported"

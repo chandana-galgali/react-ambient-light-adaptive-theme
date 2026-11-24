@@ -4,15 +4,16 @@
 [![CI](https://github.com/chandana-galgali/react-ambient-light-adaptive-theme/actions/workflows/ci.yml/badge.svg)](https://github.com/chandana-galgali/react-ambient-light-adaptive-theme/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-A React provider that switches between light and dark themes based on how bright it actually is around your user. It reads the device's ambient light sensor, and falls back to the system setting or the time of day when the browser can't measure light.
+A React provider that switches between light and dark themes based on how bright it actually is around your user. It reads the device's ambient light sensor or, on devices where browsers don't expose one (iPhone, most laptops), the camera. When neither is available it falls back to the system setting or the time of day.
 
-**[Try the live demo →](https://chandana-galgali.github.io/react-ambient-light-adaptive-theme/)** Drag a lux needle from moonlight to full daylight and watch the page switch.
+**[Try the live demo →](https://chandana-galgali.github.io/react-ambient-light-adaptive-theme/)** Turn on your camera and cover it with your hand, or drag a lux needle from moonlight to full daylight, and watch the page switch.
 
 [![Demo: the same page in light and dark themes](docs/preview.png)](https://chandana-galgali.github.io/react-ambient-light-adaptive-theme/)
 
 ## Features
 
 - **Reads real light levels** through the [`AmbientLightSensor`](https://w3c.github.io/ambient-light/) API, including the permission check.
+- **Camera light meter** for everywhere else: `lightSource="camera"` measures the brightness of the camera image, so covering the camera or switching off the lights turns the theme dark. Works in Safari on iPhone. Frames are reduced to one number on the device; nothing is stored or uploaded.
 - **No flicker.** Two thresholds (dark below 30 lx, light above 60 lx) with a hold zone between them, and a short switch delay so a hand passing over the sensor doesn't flip the theme.
 - **Fallbacks that stay live:** the system preference (updates when the OS switches), the time of day (checked every minute), or a fixed theme.
 - **Manual override** (`auto` / `light` / `dark`) that's remembered between visits.
@@ -92,6 +93,30 @@ With **Tailwind CSS v4**, make the `dark:` variant follow the class:
 
 Prefer a data attribute? Use `attribute="data-theme"` and style `[data-theme="dark"]`.
 
+### Use the camera as the light meter
+
+Browsers rarely expose the light sensor, but almost all of them can use the camera over HTTPS. Because opening the camera asks for permission, turn it on from a button rather than on page load:
+
+```tsx
+"use client";
+import { useState } from "react";
+import { AmbientLightThemeProvider } from "react-ambient-light-adaptive-theme";
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [useCamera, setUseCamera] = useState(false);
+  return (
+    <AmbientLightThemeProvider lightSource={useCamera ? "camera" : "sensor"}>
+      <button onClick={() => setUseCamera((on) => !on)}>
+        {useCamera ? "Stop using camera" : "Match the room's light"}
+      </button>
+      {children}
+    </AmbientLightThemeProvider>
+  );
+}
+```
+
+The camera reports relative brightness (0 to 1), not lux. It goes dark below `cameraDarkThreshold` (0.12) and light above `cameraLightThreshold` (0.2). Cameras adjust their own exposure, so it reliably tells a covered camera or a dark room from normal light, but it can't tell a dim room from a bright one.
+
 ### Read the theme in a component
 
 ```tsx
@@ -121,17 +146,22 @@ function ThemeBadge() {
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
+| `lightSource` | `"sensor" \| "camera"` | `"sensor"` | Measure light with the ambient light sensor or the camera. Setting `"camera"` asks for camera permission. |
 | `fallback` | `"system" \| "time-based" \| "light" \| "dark"` | `"system"` | What to use when there's no light reading. |
 | `darkThreshold` | `number` | `30` | Go dark below this many lux. |
 | `lightThreshold` | `number` | `60` | Go light above this many lux. Between the two, the theme doesn't change. |
 | `switchDelay` | `number` | `1000` | Milliseconds the sensor must keep pointing to the other theme before switching. Simulated readings switch immediately. |
 | `frequency` | `number` | `1` | Sensor readings per second. |
+| `cameraDarkThreshold` | `number` | `0.12` | Camera mode: go dark below this brightness (0–1). |
+| `cameraLightThreshold` | `number` | `0.2` | Camera mode: go light above this brightness (0–1). |
+| `cameraInterval` | `number` | `500` | Camera mode: milliseconds between samples. |
+| `cameraFacingMode` | `"user" \| "environment"` | `"user"` | Camera mode: front or back camera. |
 | `nightStart` | `number` | `19` | Hour (0–23) the time-based fallback turns dark. |
 | `nightEnd` | `number` | `7` | Hour it turns light again. Windows may wrap past midnight. |
 | `attribute` | `"class" \| "data-*" \| null` | `"class"` | Where to write the theme on `<html>`. `null` leaves the DOM alone. |
 | `storageKey` | `string \| null` | `"ambient-theme-mode"` | localStorage key for the manual choice. `null` to not remember it. |
 | `defaultMode` | `"auto" \| "light" \| "dark"` | `"auto"` | Mode before the user picks one. |
-| `disableSensor` | `boolean` | `false` | Skip the sensor and use only the fallback. |
+| `disableSensor` | `boolean` | `false` | Skip the sensor or camera and use only the fallback. |
 | `simulatedIlluminance` | `number \| null` | `null` | Feed a lux value yourself (demos, tests, Storybook). |
 | `onThemeChange` | `(theme, source) => void` | None | Called when the theme or its source changes. |
 
@@ -141,9 +171,11 @@ function ThemeBadge() {
 | --- | --- | --- |
 | `theme` | `"light" \| "dark"` | The theme in use. |
 | `isDarkMode` | `boolean` | `theme === "dark"`. |
-| `source` | `"sensor" \| "simulated" \| "system" \| "time" \| "static" \| "manual"` | Why this theme was picked. |
-| `illuminance` | `number \| null` | Latest reading in lux. |
-| `sensorStatus` | `"idle" \| "unsupported" \| "pending" \| "active" \| "denied" \| "error" \| "simulated"` | What the sensor is doing. |
+| `source` | `"sensor" \| "camera" \| "simulated" \| "system" \| "time" \| "static" \| "manual"` | Why this theme was picked. |
+| `illuminance` | `number \| null` | Latest sensor reading in lux. |
+| `brightness` | `number \| null` | Latest camera brightness, 0–1. |
+| `lightSource` | `"sensor" \| "camera"` | The light source in use. |
+| `sensorStatus` | `"idle" \| "unsupported" \| "pending" \| "active" \| "denied" \| "error" \| "simulated"` | What the sensor or camera is doing. |
 | `mode` | `"auto" \| "light" \| "dark"` | Auto, or the user's manual choice. |
 | `setMode` | `(mode) => void` | Change the mode. Saved to `storageKey`. |
 | `toggleTheme` | `() => void` | Switch to the opposite theme as a manual choice. |
@@ -160,6 +192,9 @@ These are exported for custom setups and tests:
 | `createSwitchGate(onSwitch, getDelay?)` | The switch-delay logic, for use with your own sensor code. |
 | `isNightHour(hour, start?, end?)`, `themeFromTime(date, start?, end?)` | The time-based rule. |
 | `isAmbientLightSensorSupported()` | Feature check, safe during SSR. |
+| `isCameraSupported()` | True when the page can open a camera (needs HTTPS or localhost). |
+| `startCameraLightMeter({ interval, facingMode, onReading, onError })` | Open the camera and stream brightness (0–1); returns a stop function. |
+| `meanBrightness(rgba)` | Average perceived brightness of RGBA pixel data. |
 | `queryAmbientLightPermission()` | Resolves to `"granted"`, `"denied"` or `"prompt"`. |
 | `startAmbientLightSensor({ frequency, onReading, onError })` | Start the sensor; returns a stop function. |
 | `getThemeScript(options)` | The no-flash script as a string, for frameworks that inject scripts their own way. |
@@ -178,11 +213,13 @@ These are exported for custom setups and tests:
 
 Chrome rounds readings to the nearest 50 lx for privacy, so with the defaults you'll see dark at 0 lx, no change at 50 lx, and light from 100 lx.
 
-When the sensor is missing, blocked or denied, the provider uses the fallback, so the theme always works. Check `sensorStatus` if you want to tell users why.
+No light sensor available? Use `lightSource="camera"`, which works in every major browser including Safari on iPhone, as long as the page is served over HTTPS (or `localhost`).
 
-### Testing the sensor without the hardware
+When the sensor or camera is missing, blocked or denied, the provider uses the fallback, so the theme always works. Check `sensorStatus` if you want to tell users why.
 
-`npm run test:sensor` starts Chromium with the sensor API turned on, swaps the hardware for a virtual light sensor through the Chrome DevTools Protocol, and checks that the demo page reacts: lights off goes dark, the hold zone holds, and a brief shadow is ignored. It runs in CI on every push.
+### Testing without the hardware
+
+`npm run test:sensor` runs two end-to-end checks in Chromium. It swaps the light sensor for a virtual one through the Chrome DevTools Protocol and checks that the demo reacts (lights off goes dark, the hold zone holds, a brief shadow is ignored). Then it swaps the webcam for a generated video, once covered and once lit, and checks the camera mode. It runs in CI on every push.
 
 ```bash
 npm run build
@@ -196,7 +233,7 @@ npm run test:sensor -- --headed   # watch it happen
 npm install
 npm run dev        # demo site at http://localhost:3000
 npm test           # unit tests (node:test via tsx)
-npm run test:sensor  # end-to-end test with a virtual light sensor (needs npm run build)
+npm run test:sensor  # end-to-end test with a virtual sensor and camera (needs npm run build)
 npm run check      # lint + typecheck + tests
 npm run build:lib  # build the package into dist/
 npm run build      # static export of the demo site into out/
@@ -206,6 +243,7 @@ npm run build      # static export of the demo site into out/
 src/lib/                the published package
   core.ts               pure decision logic (thresholds, switch delay, time)
   sensor.ts             AmbientLightSensor wrapper
+  camera.ts             camera light meter
   dom.ts                applying the theme and the no-flash script
   AmbientLightThemeProvider.tsx
   script.tsx            server-safe entry: <AmbientThemeScript>

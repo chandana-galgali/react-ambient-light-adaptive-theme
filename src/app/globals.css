@@ -315,7 +315,8 @@ main {
     margin-top: 3rem;
   }
 
-  .hero .meter-presets {
+  .hero .meter-presets,
+  .hero .meter-camera {
     grid-column: 1 / -1;
     margin-top: 1.75rem;
   }
@@ -507,6 +508,24 @@ main {
 .meter-presets button[aria-pressed="true"] {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.meter-camera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+
+.meter-note {
+  color: var(--muted);
+  font-size: 0.95rem;
+  max-width: 52ch;
+}
+
+/* Camera mode: a plain dark-to-bright bar instead of the lux gradient. */
+.meter[data-camera] .meter-track {
+  background: linear-gradient(90deg, #05070b 0%, #3b4250 45%, #c9ced6 80%, #ffffff 100%);
 }
 
 .meter-presets .meter-stop {

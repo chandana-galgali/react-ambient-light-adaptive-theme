@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   isAmbientLightSensorSupported,
+  isCameraSupported,
   queryAmbientLightPermission,
   themeFromTime,
   useAmbientTheme,
@@ -18,6 +19,7 @@ interface Props {
 
 interface Capabilities {
   supported: boolean;
+  camera: boolean;
   permission: PermissionState | "n/a";
   secure: boolean;
   prefersDark: boolean;
@@ -35,6 +37,7 @@ const SENSOR_TEXT: Record<SensorStatus, string> = {
 
 const SOURCE_TEXT: Record<string, string> = {
   sensor: "Light sensor",
+  camera: "Camera brightness",
   simulated: "Simulated reading",
   system: "System setting",
   time: "Time of day",
@@ -45,7 +48,7 @@ const SOURCE_TEXT: Record<string, string> = {
 const pad = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
 
 export function BrowserCheck({ lux, setLux, config }: Props) {
-  const { source, sensorStatus } = useAmbientTheme();
+  const { source, sensorStatus, lightSource } = useAmbientTheme();
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [now, setNow] = useState<Date | null>(null);
 
@@ -57,6 +60,7 @@ export function BrowserCheck({ lux, setLux, config }: Props) {
       if (cancelled) return;
       setCaps({
         supported,
+        camera: isCameraSupported(),
         permission,
         secure: window.isSecureContext,
         prefersDark: query?.matches ?? false,
@@ -86,7 +90,12 @@ export function BrowserCheck({ lux, setLux, config }: Props) {
           ok: caps.supported,
         },
         {
-          label: "Sensor",
+          label: "Camera access",
+          value: caps.camera ? "Available" : caps.secure ? "Not available" : "Needs HTTPS",
+          ok: caps.camera,
+        },
+        {
+          label: lightSource === "camera" ? "Camera" : "Sensor",
           value: SENSOR_TEXT[sensorStatus],
           ok: sensorStatus === "active" ? true : undefined,
         },

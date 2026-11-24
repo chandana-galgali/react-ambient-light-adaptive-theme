@@ -19,10 +19,12 @@ import {
   themeFromTime,
   type SwitchGate,
 } from "./core";
+import { isCameraSupported, startCameraLightMeter } from "./camera";
 import { applyThemeToDocument } from "./dom";
 import { isAmbientLightSensorSupported, startAmbientLightSensor } from "./sensor";
 import type {
   Fallback,
+  LightSource,
   SensorStatus,
   Theme,
   ThemeAttribute,
@@ -32,6 +34,12 @@ import type {
 
 export interface AmbientLightThemeProviderProps {
   children: ReactNode;
+  /**
+   * What measures the light: the ambient light `"sensor"` (default) or the
+   * `"camera"`. Camera mode asks for camera permission as soon as it's set,
+   * so switch to it from a user action such as a button press.
+   */
+  lightSource?: LightSource;
   /** Used when no light reading is available. Default `"system"`. */
   fallback?: Fallback;
   /** Go dark below this many lux. Default `30`. */
@@ -46,6 +54,14 @@ export interface AmbientLightThemeProviderProps {
   switchDelay?: number;
   /** Sensor sampling rate in Hz. Default `1`. */
   frequency?: number;
+  /** Camera mode: go dark below this brightness (0–1). Default `0.12`. */
+  cameraDarkThreshold?: number;
+  /** Camera mode: go light above this brightness (0–1). Default `0.2`. */
+  cameraLightThreshold?: number;
+  /** Camera mode: milliseconds between samples. Default `500`. */
+  cameraInterval?: number;
+  /** Camera mode: `"user"` (front, default) or `"environment"` (back). */
+  cameraFacingMode?: "user" | "environment";
   /** Hour the time-based fallback turns dark. Default `19`. */
   nightStart?: number;
   /** Hour the time-based fallback turns light. Default `7`. */
@@ -56,7 +72,7 @@ export interface AmbientLightThemeProviderProps {
   storageKey?: string | null;
   /** Mode before anything is stored. Default `"auto"`. */
   defaultMode?: ThemeMode;
-  /** Don't touch the real sensor, even if supported. */
+  /** Don't start the sensor or camera; use only the fallback. */
   disableSensor?: boolean;
   /**
    * Feed a lux value instead of reading the sensor — for demos, tests and
@@ -74,9 +90,13 @@ export interface AmbientThemeContextValue {
   isDarkMode: boolean;
   /** Why this theme was chosen. */
   source: ThemeSource;
-  /** Latest reading in lux, or `null` without one. */
+  /** Latest sensor reading in lux, or `null` without one. */
   illuminance: number | null;
-  /** State of the ambient light sensor. */
+  /** Latest camera brightness (0–1), or `null` outside camera mode. */
+  brightness: number | null;
+  /** The light source in use. */
+  lightSource: LightSource;
+  /** State of the light source (sensor or camera). */
   sensorStatus: SensorStatus;
   /** Current mode: `auto` or a manual `light` / `dark` override. */
   mode: ThemeMode;
@@ -111,6 +131,11 @@ export function AmbientLightThemeProvider({
   lightThreshold = DEFAULTS.lightThreshold,
   switchDelay = DEFAULTS.switchDelay,
   frequency = DEFAULTS.frequency,
+  lightSource = "sensor",
+  cameraDarkThreshold = DEFAULTS.cameraDarkThreshold,
+  cameraLightThreshold = DEFAULTS.cameraLightThreshold,
+  cameraInterval = DEFAULTS.cameraInterval,
+  cameraFacingMode = "user",
   nightStart = DEFAULTS.nightStart,
   nightEnd = DEFAULTS.nightEnd,
   attribute = "class",
@@ -128,20 +153,28 @@ export function AmbientLightThemeProvider({
   const [sensorStatus, setSensorStatus] = useState<SensorStatus>("idle");
   const [sensorTheme, setSensorTheme] = useState<Theme | null>(null);
   const [illuminance, setIlluminance] = useState<number | null>(null);
+  const [brightness, setBrightness] = useState<number | null>(null);
 
   const simulating =
     typeof simulatedIlluminance === "number" &&
     Number.isFinite(simulatedIlluminance);
 
   // Sensor callbacks read the latest options without restarting the sensor.
-  const optionsRef = useRef({ darkThreshold, lightThreshold, switchDelay });
-  useEffect(() => {
-    optionsRef.current = { darkThreshold, lightThreshold, switchDelay };
-  }, [darkThreshold, lightThreshold, switchDelay]);
+  // Thresholds for the active light source.
+  const [activeDark, activeLight] =
+    lightSource === "camera"
+      ? [cameraDarkThreshold, cameraLightThreshold]
+      : [darkThreshold, lightThreshold];
 
-  // The running sensor's switch gate and last raw reading.
+  // Light-source callbacks read the latest options without restarting.
+  const optionsRef = useRef({ dark: activeDark, light: activeLight, switchDelay });
+  useEffect(() => {
+    optionsRef.current = { dark: activeDark, light: activeLight, switchDelay };
+  }, [activeDark, activeLight, switchDelay]);
+
+  // The running light source's switch gate and last raw reading.
   const gateRef = useRef<SwitchGate | null>(null);
-  const lastLuxRef = useRef<number | null>(null);
+  const lastValueRef = useRef<number | null>(null);
 
   const onThemeChangeRef = useRef(onThemeChange);
   useEffect(() => {
@@ -200,16 +233,18 @@ export function AmbientLightThemeProvider({
     );
   }, [simulating, simulatedIlluminance, darkThreshold, lightThreshold]);
 
-  // Real sensor.
+  // Real light source: the ambient light sensor or the camera.
   useEffect(() => {
     if (simulating) return;
     setSensorTheme(null);
     setIlluminance(null);
+    setBrightness(null);
     if (disableSensor) {
       setSensorStatus("idle");
       return;
     }
-    if (!isAmbientLightSensorSupported()) {
+    const useCamera = lightSource === "camera";
+    if (useCamera ? !isCameraSupported() : !isAmbientLightSensorSupported()) {
       setSensorStatus("unsupported");
       return;
     }
@@ -219,48 +254,49 @@ export function AmbientLightThemeProvider({
       () => optionsRef.current.switchDelay,
     );
     gateRef.current = gate;
-    lastLuxRef.current = null;
-    const stop = startAmbientLightSensor({
-      frequency,
-      onReading: (lux) => {
-        const options = optionsRef.current;
-        lastLuxRef.current = lux;
-        setIlluminance(lux);
-        setSensorStatus("active");
-        gate.push(
-          classifyIlluminance(
-            lux,
-            gate.current,
-            options.darkThreshold,
-            options.lightThreshold,
-          ),
-        );
-      },
-      onError: (reason) => {
-        gate.reset(null);
-        setSensorStatus(reason);
-        setSensorTheme(null);
-      },
-    });
+    lastValueRef.current = null;
+
+    const onReading = (value: number) => {
+      const options = optionsRef.current;
+      lastValueRef.current = value;
+      if (useCamera) setBrightness(value);
+      else setIlluminance(value);
+      setSensorStatus("active");
+      gate.push(classifyIlluminance(value, gate.current, options.dark, options.light));
+    };
+    const onError = (reason: "denied" | "error") => {
+      gate.reset(null);
+      setSensorStatus(reason);
+      setSensorTheme(null);
+    };
+
+    const stop = useCamera
+      ? startCameraLightMeter({
+          interval: cameraInterval,
+          facingMode: cameraFacingMode,
+          onReading,
+          onError,
+        })
+      : startAmbientLightSensor({ frequency, onReading, onError });
     return () => {
       stop();
       gate.dispose();
       if (gateRef.current === gate) gateRef.current = null;
     };
-  }, [simulating, disableSensor, frequency]);
+  }, [simulating, disableSensor, lightSource, frequency, cameraInterval, cameraFacingMode]);
 
-  // Re-check the real sensor's last reading when thresholds change.
+  // Re-check the last reading when thresholds change.
   useEffect(() => {
     const gate = gateRef.current;
-    const lux = lastLuxRef.current;
-    if (simulating || !gate || gate.current === null || lux === null) return;
-    gate.push(classifyIlluminance(lux, gate.current, darkThreshold, lightThreshold));
-  }, [darkThreshold, lightThreshold, simulating]);
+    const value = lastValueRef.current;
+    if (simulating || !gate || gate.current === null || value === null) return;
+    gate.push(classifyIlluminance(value, gate.current, activeDark, activeLight));
+  }, [activeDark, activeLight, simulating]);
 
   const { theme, source } = resolveTheme({
     mode,
     sensorTheme,
-    sensorSource: simulating ? "simulated" : "sensor",
+    sensorSource: simulating ? "simulated" : lightSource === "camera" ? "camera" : "sensor",
     fallbackTheme,
     fallback,
   });
@@ -291,12 +327,14 @@ export function AmbientLightThemeProvider({
       isDarkMode: theme === "dark",
       source,
       illuminance,
+      brightness,
+      lightSource,
       sensorStatus,
       mode,
       setMode,
       toggleTheme,
     }),
-    [theme, source, illuminance, sensorStatus, mode, setMode, toggleTheme],
+    [theme, source, illuminance, brightness, lightSource, sensorStatus, mode, setMode, toggleTheme],
   );
 
   return (

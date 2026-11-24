@@ -22,6 +22,7 @@ export {
 export type { SwitchGate } from "./core";
 export { applyThemeToDocument, getThemeScript } from "./dom";
 export type { ThemeScriptOptions } from "./dom";
+export { isCameraSupported, meanBrightness, startCameraLightMeter } from "./camera";
 export {
   isAmbientLightSensorSupported,
   queryAmbientLightPermission,
@@ -29,6 +30,7 @@ export {
 } from "./sensor";
 export type {
   Fallback,
+  LightSource,
   SensorStatus,
   Theme,
   ThemeAttribute,

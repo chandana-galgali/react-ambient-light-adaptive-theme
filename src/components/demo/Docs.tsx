@@ -44,17 +44,22 @@ function ThemeBadge() {
 }`;
 
 const PROPS: [string, string, string, string][] = [
+  ["lightSource", `"sensor" | "camera"`, `"sensor"`, "Measure light with the ambient light sensor or the camera. The camera asks for permission when this is set."],
   ["fallback", `"system" | "time-based" | "light" | "dark"`, `"system"`, "What to use when there's no light reading."],
   ["darkThreshold", "number", "30", "Go dark below this many lux."],
   ["lightThreshold", "number", "60", "Go light above this many lux. In between, the theme stays as it is."],
   ["switchDelay", "number", "1000", "Milliseconds the sensor must keep pointing to the other theme before switching."],
   ["frequency", "number", "1", "Sensor readings per second."],
+  ["cameraDarkThreshold", "number", "0.12", "Camera mode: go dark below this brightness (0 to 1)."],
+  ["cameraLightThreshold", "number", "0.2", "Camera mode: go light above this brightness (0 to 1)."],
+  ["cameraInterval", "number", "500", "Camera mode: milliseconds between samples."],
+  ["cameraFacingMode", `"user" | "environment"`, `"user"`, "Camera mode: front or back camera."],
   ["nightStart", "number", "19", "Hour the time-based fallback turns dark."],
   ["nightEnd", "number", "7", "Hour it turns light again."],
   ["attribute", `"class" | "data-*" | null`, `"class"`, "Where to write the theme on <html>. null leaves the DOM alone."],
   ["storageKey", "string | null", `"ambient-theme-mode"`, "Where a manual choice is remembered. null to not remember it."],
   ["defaultMode", `"auto" | "light" | "dark"`, `"auto"`, "Mode before the user picks one."],
-  ["disableSensor", "boolean", "false", "Skip the sensor and use only the fallback."],
+  ["disableSensor", "boolean", "false", "Skip the sensor or camera and use only the fallback."],
   ["simulatedIlluminance", "number | null", "null", "Feed a lux value yourself, for demos and tests."],
   ["onThemeChange", "(theme, source) => void", "", "Called when the theme or its source changes."],
 ];
@@ -62,9 +67,11 @@ const PROPS: [string, string, string, string][] = [
 const VALUES: [string, string, string][] = [
   ["theme", `"light" | "dark"`, "The theme in use."],
   ["isDarkMode", "boolean", "Shorthand for theme === \"dark\"."],
-  ["source", `"sensor" | "simulated" | "system" | "time" | "static" | "manual"`, "Why this theme was picked."],
-  ["illuminance", "number | null", "Latest reading in lux."],
-  ["sensorStatus", `"idle" | "unsupported" | "pending" | "active" | "denied" | "error" | "simulated"`, "What the sensor is doing."],
+  ["source", `"sensor" | "camera" | "simulated" | "system" | "time" | "static" | "manual"`, "Why this theme was picked."],
+  ["illuminance", "number | null", "Latest sensor reading in lux."],
+  ["brightness", "number | null", "Latest camera brightness, 0 to 1."],
+  ["lightSource", `"sensor" | "camera"`, "The light source in use."],
+  ["sensorStatus", `"idle" | "unsupported" | "pending" | "active" | "denied" | "error" | "simulated"`, "What the sensor or camera is doing."],
   ["mode", `"auto" | "light" | "dark"`, "Auto, or the user's manual choice."],
   ["setMode", "(mode) => void", "Change the mode. Remembered between visits."],
   ["toggleTheme", "() => void", "Switch to the opposite theme as a manual choice."],

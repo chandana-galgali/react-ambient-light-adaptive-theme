@@ -1,6 +1,6 @@
 "use client";
 
-import type { Fallback } from "@/lib";
+import type { Fallback, LightSource } from "@/lib";
 import { CodeBlock } from "./CodeBlock";
 import { DEFAULT_CONFIG, type DemoConfig } from "./Demo";
 
@@ -22,6 +22,7 @@ const HOURS = Array.from({ length: 24 }, (_, h) => h);
 export function toSnippet(config: DemoConfig): string {
   const props: string[] = [];
   const d = DEFAULT_CONFIG;
+  if (config.lightSource !== d.lightSource) props.push(`lightSource="${config.lightSource}"`);
   if (config.darkThreshold !== d.darkThreshold) props.push(`darkThreshold={${config.darkThreshold}}`);
   if (config.lightThreshold !== d.lightThreshold) props.push(`lightThreshold={${config.lightThreshold}}`);
   if (config.fallback !== d.fallback) props.push(`fallback="${config.fallback}"`);
@@ -79,17 +80,32 @@ export function Configurator({ config, setConfig }: Props) {
   return (
     <div className="configurator">
       <form className="config-form" onSubmit={(event) => event.preventDefault()}>
+        <div className="field">
+          <label htmlFor="cfg-source">Measure light with</label>
+          <select
+            id="cfg-source"
+            value={config.lightSource}
+            onChange={(event) => set("lightSource", event.currentTarget.value as LightSource)}
+          >
+            <option value="sensor">The ambient light sensor</option>
+            <option value="camera">The camera</option>
+          </select>
+          <p className="field-hint">
+            The camera asks for permission and measures relative brightness, not lux.
+          </p>
+        </div>
+
         <NumberField
           id="cfg-dark"
           label="Dark below"
-          hint="Readings under this switch to dark."
+          hint="Sensor readings under this switch to dark."
           value={config.darkThreshold}
           onChange={(v) => set("darkThreshold", v)}
         />
         <NumberField
           id="cfg-light"
           label="Light above"
-          hint="Readings over this switch to light."
+          hint="Sensor readings over this switch to light."
           value={config.lightThreshold}
           onChange={(v) => set("lightThreshold", v)}
         />
