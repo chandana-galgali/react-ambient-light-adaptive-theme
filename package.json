@@ -63,7 +63,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "check": "npm run lint && npm run typecheck && npm test",
-    "prepublishOnly": "npm test && npm run build:lib"
+    "prepublishOnly": "npm test && npm run build:lib",
+    "test:sensor": "node scripts/sensor-e2e.mjs"
   },
   "peerDependencies": {
     "react": ">=16.8.0"
@@ -76,6 +77,7 @@
     "eslint": "^9",
     "eslint-config-next": "^15.5.29",
     "next": "^15.5.29",
+    "playwright": "^1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tsup": "^8",

@@ -29,7 +29,7 @@ export function toSnippet(config: DemoConfig): string {
     if (config.nightStart !== d.nightStart) props.push(`nightStart={${config.nightStart}}`);
     if (config.nightEnd !== d.nightEnd) props.push(`nightEnd={${config.nightEnd}}`);
   }
-  if (config.smoothing !== d.smoothing) props.push(`smoothing={${config.smoothing}}`);
+  if (config.switchDelay !== d.switchDelay) props.push(`switchDelay={${config.switchDelay}}`);
 
   const open = props.length
     ? `<AmbientLightThemeProvider\n${props.map((p) => `  ${p}`).join("\n")}\n>`
@@ -147,20 +147,23 @@ export function Configurator({ config, setConfig }: Props) {
         )}
 
         <div className="field">
-          <label htmlFor="cfg-smoothing">Smoothing</label>
+          <label htmlFor="cfg-delay">Switch delay</label>
           <input
-            id="cfg-smoothing"
+            id="cfg-delay"
             type="range"
             min={0}
-            max={0.9}
-            step={0.1}
-            value={config.smoothing}
-            aria-describedby="cfg-smoothing-hint"
-            onChange={(event) => set("smoothing", Number(event.currentTarget.value))}
+            max={5000}
+            step={250}
+            value={config.switchDelay}
+            aria-describedby="cfg-delay-hint"
+            aria-valuetext={`${config.switchDelay / 1000} seconds`}
+            onChange={(event) => set("switchDelay", Number(event.currentTarget.value))}
           />
-          <p className="field-hint" id="cfg-smoothing-hint">
-            {config.smoothing.toFixed(1)}. Higher values react more slowly to
-            real sensor readings. Simulated readings aren&apos;t smoothed.
+          <p className="field-hint" id="cfg-delay-hint">
+            {(config.switchDelay / 1000).toFixed(2).replace(/0$/, "")} s. How long a
+            real sensor has to keep reading dark or light before the theme
+            changes, so a passing shadow doesn&apos;t flip it. Simulated
+            readings switch straight away.
           </p>
         </div>
 

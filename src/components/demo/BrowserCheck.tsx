@@ -129,9 +129,11 @@ export function BrowserCheck({ lux, setLux, config }: Props) {
       )}
       {caps && !caps.supported && (
         <p className="check-hint">
-          To try a real sensor, open this page in Chrome on an Android phone,
-          turn on <code>chrome://flags/#enable-generic-sensor-extra-classes</code>,
-          and reload.
+          To try a real sensor, use Chrome or Edge on an Android phone or on a
+          laptop with auto-brightness. Turn on{" "}
+          <code>chrome://flags/#enable-generic-sensor-extra-classes</code> (in
+          Edge, <code>edge://flags</code>), restart the browser, and reload.
+          Safari, every browser on iPhone, and Firefox don&apos;t support it.
         </p>
       )}
     </div>

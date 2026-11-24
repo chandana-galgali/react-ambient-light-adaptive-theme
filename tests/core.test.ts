@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, mock } from "node:test";
 import {
   DEFAULTS,
   classifyIlluminance,
+  createSwitchGate,
   isNightHour,
   normalizeThresholds,
   parseMode,
   resolveTheme,
-  smoothIlluminance,
   themeFromTime,
 } from "../src/lib/core";
 
@@ -53,19 +53,88 @@ describe("classifyIlluminance", () => {
   });
 });
 
-describe("smoothIlluminance", () => {
-  it("returns the first reading unchanged", () => {
-    assert.equal(smoothIlluminance(null, 120), 120);
+describe("createSwitchGate", () => {
+  function setup(delay = 1000) {
+    const switches: string[] = [];
+    const gate = createSwitchGate((t) => switches.push(t), () => delay);
+    return { gate, switches };
+  }
+
+  it("takes the first theme immediately", () => {
+    const { gate, switches } = setup();
+    gate.push("light");
+    assert.deepEqual(switches, ["light"]);
+    assert.equal(gate.current, "light");
   });
 
-  it("blends towards the new reading", () => {
-    assert.equal(smoothIlluminance(100, 0, 0.5), 50);
-    assert.equal(smoothIlluminance(100, 0, 0), 0);
+  it("switches after the delay, even with no further readings", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const { gate, switches } = setup(1000);
+      gate.push("light");
+      gate.push("dark"); // a sensor reports a change once, then goes quiet
+      mock.timers.tick(999);
+      assert.deepEqual(switches, ["light"]);
+      mock.timers.tick(1);
+      assert.deepEqual(switches, ["light", "dark"]);
+      assert.equal(gate.current, "dark");
+    } finally {
+      mock.timers.reset();
+    }
   });
 
-  it("clamps smoothing so readings always move", () => {
-    const value = smoothIlluminance(100, 0, 5);
-    assert.ok(value < 100 && value > 0);
+  it("cancels when readings go back before the delay ends", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const { gate, switches } = setup(1000);
+      gate.push("light");
+      gate.push("dark"); // a hand over the sensor
+      mock.timers.tick(400);
+      gate.push("light"); // hand moves away
+      mock.timers.tick(5000);
+      assert.deepEqual(switches, ["light"]);
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  it("does not restart the timer for repeated readings of the same theme", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const { gate, switches } = setup(1000);
+      gate.push("light");
+      gate.push("dark");
+      mock.timers.tick(600);
+      gate.push("dark");
+      mock.timers.tick(400);
+      assert.deepEqual(switches, ["light", "dark"]);
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  it("switches immediately when the delay is 0", () => {
+    const { gate, switches } = setup(0);
+    gate.push("light");
+    gate.push("dark");
+    assert.deepEqual(switches, ["light", "dark"]);
+  });
+
+  it("can be reset and disposed", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const { gate, switches } = setup(1000);
+      gate.push("light");
+      gate.push("dark");
+      gate.dispose();
+      mock.timers.tick(2000);
+      assert.deepEqual(switches, ["light"]);
+      gate.reset(null);
+      gate.push("dark");
+      assert.deepEqual(switches, ["light", "dark"]);
+    } finally {
+      mock.timers.reset();
+    }
   });
 });
 

@@ -13,10 +13,11 @@ import {
 import {
   DEFAULTS,
   classifyIlluminance,
+  createSwitchGate,
   parseMode,
   resolveTheme,
-  smoothIlluminance,
   themeFromTime,
+  type SwitchGate,
 } from "./core";
 import { applyThemeToDocument } from "./dom";
 import { isAmbientLightSensorSupported, startAmbientLightSensor } from "./sensor";
@@ -37,8 +38,12 @@ export interface AmbientLightThemeProviderProps {
   darkThreshold?: number;
   /** Go light above this many lux. Default `60`. */
   lightThreshold?: number;
-  /** Weight of the previous reading, 0–0.95. Default `0.4`. */
-  smoothing?: number;
+  /**
+   * Milliseconds a new theme must keep being indicated by the sensor before
+   * switching, so a passing shadow doesn't flip the UI. Default `1000`.
+   * Simulated readings switch immediately.
+   */
+  switchDelay?: number;
   /** Sensor sampling rate in Hz. Default `1`. */
   frequency?: number;
   /** Hour the time-based fallback turns dark. Default `19`. */
@@ -69,7 +74,7 @@ export interface AmbientThemeContextValue {
   isDarkMode: boolean;
   /** Why this theme was chosen. */
   source: ThemeSource;
-  /** Latest (smoothed) reading in lux, or `null` without a sensor. */
+  /** Latest reading in lux, or `null` without one. */
   illuminance: number | null;
   /** State of the ambient light sensor. */
   sensorStatus: SensorStatus;
@@ -104,7 +109,7 @@ export function AmbientLightThemeProvider({
   fallback = "system",
   darkThreshold = DEFAULTS.darkThreshold,
   lightThreshold = DEFAULTS.lightThreshold,
-  smoothing = DEFAULTS.smoothing,
+  switchDelay = DEFAULTS.switchDelay,
   frequency = DEFAULTS.frequency,
   nightStart = DEFAULTS.nightStart,
   nightEnd = DEFAULTS.nightEnd,
@@ -129,10 +134,14 @@ export function AmbientLightThemeProvider({
     Number.isFinite(simulatedIlluminance);
 
   // Sensor callbacks read the latest options without restarting the sensor.
-  const optionsRef = useRef({ darkThreshold, lightThreshold, smoothing });
+  const optionsRef = useRef({ darkThreshold, lightThreshold, switchDelay });
   useEffect(() => {
-    optionsRef.current = { darkThreshold, lightThreshold, smoothing };
-  }, [darkThreshold, lightThreshold, smoothing]);
+    optionsRef.current = { darkThreshold, lightThreshold, switchDelay };
+  }, [darkThreshold, lightThreshold, switchDelay]);
+
+  // The running sensor's switch gate and last raw reading.
+  const gateRef = useRef<SwitchGate | null>(null);
+  const lastLuxRef = useRef<number | null>(null);
 
   const onThemeChangeRef = useRef(onThemeChange);
   useEffect(() => {
@@ -180,7 +189,7 @@ export function AmbientLightThemeProvider({
     return () => window.clearInterval(id);
   }, [fallback, nightStart, nightEnd]);
 
-  // Simulated readings (no smoothing, so the UI follows the input exactly).
+  // Simulated readings switch immediately, so the UI follows the input exactly.
   useEffect(() => {
     if (!simulating) return;
     const lux = simulatedIlluminance as number;
@@ -205,41 +214,47 @@ export function AmbientLightThemeProvider({
       return;
     }
     setSensorStatus("pending");
-    let smoothed: number | null = null;
-    return startAmbientLightSensor({
+    const gate = createSwitchGate(
+      (theme) => setSensorTheme(theme),
+      () => optionsRef.current.switchDelay,
+    );
+    gateRef.current = gate;
+    lastLuxRef.current = null;
+    const stop = startAmbientLightSensor({
       frequency,
       onReading: (lux) => {
         const options = optionsRef.current;
-        const value = smoothIlluminance(smoothed, lux, options.smoothing);
-        smoothed = value;
-        setIlluminance(value);
+        lastLuxRef.current = lux;
+        setIlluminance(lux);
         setSensorStatus("active");
-        setSensorTheme((previous) =>
+        gate.push(
           classifyIlluminance(
-            value,
-            previous,
+            lux,
+            gate.current,
             options.darkThreshold,
             options.lightThreshold,
           ),
         );
       },
       onError: (reason) => {
+        gate.reset(null);
         setSensorStatus(reason);
         setSensorTheme(null);
       },
     });
+    return () => {
+      stop();
+      gate.dispose();
+      if (gateRef.current === gate) gateRef.current = null;
+    };
   }, [simulating, disableSensor, frequency]);
 
   // Re-check the real sensor's last reading when thresholds change.
   useEffect(() => {
-    if (simulating || illuminance === null) return;
-    setSensorTheme((previous) =>
-      previous === null
-        ? previous
-        : classifyIlluminance(illuminance, previous, darkThreshold, lightThreshold),
-    );
-    // illuminance intentionally omitted: readings are classified as they arrive.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const gate = gateRef.current;
+    const lux = lastLuxRef.current;
+    if (simulating || !gate || gate.current === null || lux === null) return;
+    gate.push(classifyIlluminance(lux, gate.current, darkThreshold, lightThreshold));
   }, [darkThreshold, lightThreshold, simulating]);
 
   const { theme, source } = resolveTheme({

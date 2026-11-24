@@ -13,12 +13,13 @@ export type {
 export {
   DEFAULTS,
   classifyIlluminance,
+  createSwitchGate,
   isNightHour,
   normalizeThresholds,
   resolveTheme,
-  smoothIlluminance,
   themeFromTime,
 } from "./core";
+export type { SwitchGate } from "./core";
 export { applyThemeToDocument, getThemeScript } from "./dom";
 export type { ThemeScriptOptions } from "./dom";
 export {

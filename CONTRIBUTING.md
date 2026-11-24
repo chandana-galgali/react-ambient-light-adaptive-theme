@@ -16,8 +16,9 @@ The demo site runs at http://localhost:3000 and uses the library straight from `
 ## Before opening a pull request
 
 ```bash
-npm run check      # lint, typecheck and unit tests
-npm run build:lib  # make sure the package still builds
+npm run check        # lint, typecheck and unit tests
+npm run build:lib    # make sure the package still builds
+npm run build && npm run test:sensor   # end-to-end sensor test
 ```
 
 - Keep decision logic in `src/lib/core.ts` as pure functions, and add tests for it in `tests/`.
@@ -27,7 +28,15 @@ npm run build:lib  # make sure the package still builds
 
 ## Testing the real sensor
 
-Most desktop browsers don't have `AmbientLightSensor`. To try it on a phone:
+Without hardware, run the virtual-sensor test:
+
+```bash
+npm run build
+npx playwright install chromium   # once
+npm run test:sensor -- --headed
+```
+
+To try real hardware on a phone:
 
 1. Run `npm run dev -- --hostname 0.0.0.0` and open the page over HTTPS (for example with a tunnel such as `ngrok`), since sensors require a secure context.
 2. In Chrome on Android, turn on `chrome://flags/#enable-generic-sensor-extra-classes` and restart the browser.

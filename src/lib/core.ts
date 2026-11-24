@@ -6,8 +6,11 @@ export const DEFAULTS = {
   darkThreshold: 30,
   /** Switch to light when illuminance rises above this (lux). */
   lightThreshold: 60,
-  /** Weight given to the previous reading (0 = none, 0.9 = heavy smoothing). */
-  smoothing: 0.4,
+  /**
+   * How long (ms) a new theme must keep being indicated before the provider
+   * switches to it. Filters out a hand passing over the sensor.
+   */
+  switchDelay: 1000,
   /** Sensor sampling frequency in Hz. */
   frequency: 1,
   /** Hour (0–23) at which the time-based fallback turns dark. */
@@ -48,18 +51,71 @@ export function classifyIlluminance(
   return lux < (dark + light) / 2 ? "dark" : "light";
 }
 
+export interface SwitchGate {
+  /** The theme that has actually been switched to, or `null` before the first one. */
+  readonly current: Theme | null;
+  /** Offer the theme the latest reading points to. */
+  push(next: Theme): void;
+  /** Overwrite the current theme immediately, cancelling anything pending. */
+  reset(theme: Theme | null): void;
+  /** Cancel any pending switch. */
+  dispose(): void;
+}
+
 /**
- * Exponential moving average of sensor readings.
- * `smoothing` is the weight of the previous value, clamped to [0, 0.95].
+ * Debounce theme switches. The first theme is taken immediately; after that a
+ * different theme must still be indicated `delay` ms later to be applied.
+ * If readings go back to the current theme in the meantime, the switch is
+ * cancelled.
+ *
+ * Works with "on change" sensors such as AmbientLightSensor, which only fire
+ * when the value changes: the timer, not the next reading, completes the switch.
  */
-export function smoothIlluminance(
-  previous: number | null,
-  next: number,
-  smoothing: number = DEFAULTS.smoothing,
-): number {
-  if (previous === null || !Number.isFinite(previous)) return next;
-  const s = Math.min(Math.max(smoothing, 0), 0.95);
-  return previous * s + next * (1 - s);
+export function createSwitchGate(
+  onSwitch: (theme: Theme) => void,
+  getDelay: () => number = () => DEFAULTS.switchDelay,
+): SwitchGate {
+  let current: Theme | null = null;
+  let pending: Theme | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const cancel = () => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
+    pending = null;
+  };
+
+  const commit = (theme: Theme) => {
+    cancel();
+    current = theme;
+    onSwitch(theme);
+  };
+
+  return {
+    get current() {
+      return current;
+    },
+    push(next) {
+      if (next === current) {
+        cancel();
+        return;
+      }
+      if (next === pending) return;
+      const delay = getDelay();
+      if (current === null || !(delay > 0)) {
+        commit(next);
+        return;
+      }
+      cancel();
+      pending = next;
+      timer = setTimeout(() => commit(next), delay);
+    },
+    reset(theme) {
+      cancel();
+      current = theme;
+    },
+    dispose: cancel,
+  };
 }
 
 /**

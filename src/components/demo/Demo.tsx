@@ -16,7 +16,7 @@ export interface DemoConfig {
   fallback: Fallback;
   nightStart: number;
   nightEnd: number;
-  smoothing: number;
+  switchDelay: number;
 }
 
 export const DEFAULT_CONFIG: DemoConfig = {
@@ -25,7 +25,7 @@ export const DEFAULT_CONFIG: DemoConfig = {
   fallback: "system",
   nightStart: DEFAULTS.nightStart,
   nightEnd: DEFAULTS.nightEnd,
-  smoothing: DEFAULTS.smoothing,
+  switchDelay: DEFAULTS.switchDelay,
 };
 
 export default function Demo() {
